@@ -1,0 +1,89 @@
+import io, re, zipfile
+import numpy as np, pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, average_precision_score, confusion_matrix, classification_report
+
+BAD = {'Charged Off','Default','Late (31-120 days)','Late (16-30 days)',
+       'In Grace Period','Does not meet the credit policy. Status: Charged Off'}
+GOOD = {'Fully Paid','Does not meet the credit policy. Status: Fully Paid'}
+
+def read_csv_or_zip(path):
+    if path.lower().endswith('.zip'):
+        with zipfile.ZipFile(path) as zf:
+            name = [n for n in zf.namelist() if n.lower().endswith('.csv')][0]
+            raw = zf.read(name)
+        for kw in [dict(low_memory=False), dict(low_memory=False, skiprows=1),
+                   dict(low_memory=False, engine='python'),
+                   dict(low_memory=False, engine='python', skiprows=1),
+                   dict(low_memory=False, engine='python', on_bad_lines='skip')]:
+            try: return pd.read_csv(io.BytesIO(raw), **kw)
+            except: pass
+        raise ValueError('CSV parse failed')
+    return pd.read_csv(path, low_memory=False)
+
+def pct_to_float(x):
+    try: return float(str(x).replace('%',''))/100.0
+    except: return np.nan
+
+def emp_to_years(s):
+    if pd.isna(s): return np.nan
+    s = str(s).strip()
+    if s.startswith('10+'): return 10
+    if s.startswith('< 1'): return 0
+    m = re.search(r'(\d+)', s)
+    return float(m.group(1)) if m else np.nan
+
+# 1) 로드 & 라벨링
+df = read_csv_or_zip('LoanStats_2016Q1.csv.zip')   # 필요시 여러 파일 concat
+df.columns = [c.strip().lower().replace(' ', '_') for c in df.columns]
+df = df[df['loan_status'].isin(BAD|GOOD)].copy()
+df['target'] = np.where(df['loan_status'].isin(BAD), 1, 0)
+
+# 2) 최소 특징 선택 & 전처리
+feat = ['loan_amnt','term','int_rate','installment','grade','sub_grade','emp_length',
+        'home_ownership','annual_inc','verification_status','purpose','addr_state',
+        'dti','delinq_2yrs','fico_range_low','fico_range_high','inq_last_6mths',
+        'open_acc','pub_rec','revol_bal','revol_util','total_acc','application_type']
+use = [c for c in feat if c in df.columns] + ['target']
+d = df[use].copy()
+
+for c in ['int_rate','revol_util']:
+    if c in d.columns: d[c] = d[c].apply(pct_to_float)
+if 'emp_length' in d.columns:
+    d['emp_length'] = d['emp_length'].apply(emp_to_years)
+
+num_cols = [c for c in use if c not in ['target','term','grade','sub_grade','home_ownership',
+                                        'verification_status','purpose','addr_state','application_type']]
+d = d.dropna(subset=num_cols, how='any')
+
+# 3) 15k/15k 균형 샘플
+good = d[d['target']==0]; bad = d[d['target']==1]
+g = good.sample(n=min(15000, len(good)), random_state=3033, replace=len(good)<15000)
+b = bad.sample(n=min(15000, len(bad)),  random_state=3033, replace=len(bad)<15000)
+bal = pd.concat([g,b], ignore_index=True)
+
+X = bal.drop(columns=['target']); y = bal['target'].astype(int)
+
+# 4) 파이프라인 & 분할(8:2)
+cat_cols = [c for c in X.columns if c in ['term','grade','sub_grade','home_ownership',
+                                          'verification_status','purpose','addr_state','application_type']]
+num_cols = [c for c in X.columns if c not in cat_cols]
+pre = ColumnTransformer([('num', StandardScaler(), num_cols),
+                         ('cat', OneHotEncoder(handle_unknown='ignore'), cat_cols)])
+logit = LogisticRegression(max_iter=500, solver='lbfgs')
+pipe = Pipeline([('prep', pre), ('clf', logit)])
+
+X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, stratify=y, random_state=3033)
+pipe.fit(X_tr, y_tr)
+
+# 5) 평가
+proba = pipe.predict_proba(X_te)[:,1]
+pred  = (proba>=0.5).astype(int)
+print('AUROC=', roc_auc_score(y_te, proba))
+print('AUPRC=', average_precision_score(y_te, proba))
+print('Confusion:\n', confusion_matrix(y_te, pred))
+print(classification_report(y_te, pred, digits=4))
