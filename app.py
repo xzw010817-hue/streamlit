@@ -1,6 +1,6 @@
 import streamlit as st, pandas as pd, numpy as np, joblib
 
-st.set_page_config(page_title="지능형 신용평가(Logit)", page_icon=“6688”, layout="wide")
+st.set_page_config(page_title="지능형 신용평가(Logit)", page_icon="6688", layout="wide")
 st.title("지능형 신용평가 모형 (Logistic Regression)")
 
 pipe = joblib.load("pipeline.joblib")
