@@ -1,0 +1,12 @@
+# Web UI
+streamlit>=1.33,<2
+
+# Core stack（与 Py>=3.9 兼容；支持 NumPy 2）
+scikit-learn==1.5.1
+numpy>=1.26,<3.0
+scipy>=1.10
+pandas>=2.0
+
+# Plots & utils
+matplotlib>=3.7
+joblib>=1.3
