@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Notebooks / tooling
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Data (optional - use folders for big files)
+data/
+datasets/
