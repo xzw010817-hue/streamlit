@@ -1,0 +1,12 @@
+# Web UI
+streamlit>=1.33,<2
+
+# Core ML stack (Py>=3.9, NumPy 2 compatible)
+scikit-learn==1.5.1
+numpy>=1.26,<3.0
+scipy>=1.10
+pandas>=2.0
+
+# Visualization & utils
+matplotlib>=3.7
+joblib>=1.3
