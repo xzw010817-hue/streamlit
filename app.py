@@ -1,3 +1,19 @@
+# ---- emergency hotfix: auto-install sklearn if missing ----
+try:
+    from sklearn.linear_model import LogisticRegression  # just to test availability
+except ModuleNotFoundError:
+    import sys, subprocess
+    pkgs = [
+        "scikit-learn==1.5.1",
+        "numpy>=1.26,<3.0",
+        "scipy>=1.10",
+        "pandas>=2.0",
+        "joblib>=1.3",
+        "matplotlib>=3.7",
+    ]
+    subprocess.check_call([sys.executable, "-m", "pip", "install", *pkgs])
+    # re-import after installation
+    from sklearn.linear_model import LogisticRegression
 import streamlit as st
 import pandas as pd
 import numpy as np
